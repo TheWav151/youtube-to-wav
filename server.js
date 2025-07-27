@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const ytdlp = require('yt-dlp-exec');  // استورد المكتبة بدل exec
+const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -16,11 +16,16 @@ app.post('/download', (req, res) => {
 
   const outputFile = path.resolve(__dirname, 'output.wav');
 
-  ytdlp(videoUrl, {
-    extractAudio: true,
-    audioFormat: 'wav',
-    output: outputFile,
-  }).then(() => {
+  // الأمر مع إضافة ملف الكوكيز
+  const cookiesPath = path.resolve(__dirname, 'cookies.txt');
+  const command = `yt-dlp -x --audio-format wav --cookies "${cookiesPath}" --output "${outputFile}" "${videoUrl}"`;
+
+  exec(command, (error, stdout, stderr) => {
+    if (error) {
+      console.error('Download error:', error);
+      return res.status(500).json({ error: 'Failed to download audio' });
+    }
+
     fs.access(outputFile, fs.constants.F_OK, (err) => {
       if (err) return res.status(500).json({ error: 'Audio file not found' });
 
@@ -34,9 +39,6 @@ app.post('/download', (req, res) => {
         fs.unlink(outputFile, () => {});
       });
     });
-  }).catch(error => {
-    console.error('Download error:', error);
-    res.status(500).json({ error: 'Failed to download audio' });
   });
 });
 
