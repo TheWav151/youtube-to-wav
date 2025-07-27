@@ -9,39 +9,42 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// هذا السطر يخلي السيرفر يخدم ملفات الـ HTML، CSS، JS الموجودة داخل مجلد "public"
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.post('/download', (req, res) => {
   const videoUrl = req.body.url;
-
   if (!videoUrl) {
     return res.status(400).json({ error: 'No URL provided' });
   }
 
-  const outputFile = '/tmp/output.wav'; // مجلد مؤقت آمن
+  // مسار الملف الصوتي الناتج
+  const outputFile = path.resolve(__dirname, 'output.wav');
 
-  // مسار yt-dlp الكامل:
-  const ytDlpPath = '/usr/local/bin/yt-dlp';
-
-  // أمر التحميل
-  const command = `${ytDlpPath} -x --audio-format wav --output "${outputFile}" --no-check-certificate "${videoUrl}"`;
+  // أمر تحميل الفيديو وتحويله إلى WAV باستخدام yt-dlp
+  const command = `yt-dlp -x --audio-format wav --output "${outputFile}" "${videoUrl}"`;
 
   exec(command, (error, stdout, stderr) => {
     if (error) {
       console.error('Download error:', error);
-      console.error('stderr:', stderr);  // طباعة الخطأ التفصيلي
       return res.status(500).json({ error: 'Failed to download audio' });
     }
 
+    // التأكد من وجود الملف الصوتي
     fs.access(outputFile, fs.constants.F_OK, (err) => {
       if (err) {
         return res.status(500).json({ error: 'Audio file not found' });
       }
 
+      // تهيئة الرؤوس حتى يحمّل الملف كتحميل وليس عرض
       res.setHeader('Content-Disposition', 'attachment; filename="download.wav"');
       res.setHeader('Content-Type', 'audio/wav');
 
+      // إرسال الملف للعميل
       const readStream = fs.createReadStream(outputFile);
       readStream.pipe(res);
 
+      // بعد انتهاء الإرسال، حذف الملف المؤقت
       readStream.on('close', () => {
         fs.unlink(outputFile, () => {});
       });
